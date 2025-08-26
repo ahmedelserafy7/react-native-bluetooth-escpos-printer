@@ -5,6 +5,14 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.util.Base64;
 import android.util.Log;
+import android.text.Layout;
+import android.text.StaticLayout;
+import android.text.TextPaint;
+import android.text.TextUtils;
+import android.os.Build;
+import android.view.View;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import cn.jystudio.bluetooth.BluetoothService;
 import cn.jystudio.bluetooth.BluetoothServiceStateObserver;
 import cn.jystudio.bluetooth.escpos.command.sdk.Command;
@@ -149,12 +157,25 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
 //                byte[] b = text.getBytes("UTF-8");
 //                toPrint = new String(b, Charset.forName(encoding));
 //            }
-
-            byte[] bytes = PrinterCommand.POS_Print_Text(toPrint, encoding, codepage, widthTimes, heigthTimes, fonttype);
-            if (sendDataByte(bytes)) {
-                promise.resolve(null);
+            if (containsArabicCharacters(toPrint)) {
+                Bitmap bmp = renderTextToBitmap(toPrint, deviceWidth);
+                if (bmp != null) {
+                    byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
+                    if (sendDataByte(data)) {
+                        promise.resolve(null);
+                    } else {
+                        promise.reject("COMMAND_NOT_SEND");
+                    }
+                } else {
+                    promise.reject("AR_RENDER_FAILED");
+                }
             } else {
-                promise.reject("COMMAND_NOT_SEND");
+                byte[] bytes = PrinterCommand.POS_Print_Text(toPrint, encoding, codepage, widthTimes, heigthTimes, fonttype);
+                if (sendDataByte(bytes)) {
+                    promise.resolve(null);
+                } else {
+                    promise.reject("COMMAND_NOT_SEND");
+                }
             }
         }catch (Exception e){
             promise.reject(e.getMessage(),e);
@@ -297,11 +318,21 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
         for(int i=0;i<rowsToPrint.length;i++){
             rowsToPrint[i].append("\n\r");//wrap line..
             try {
-//                byte[] toPrint = rowsToPrint[i].toString().getBytes("UTF-8");
-//                String text = new String(toPrint, Charset.forName(encoding));
-                if (!sendDataByte(PrinterCommand.POS_Print_Text(rowsToPrint[i].toString(), encoding, codepage, widthTimes, heigthTimes, fonttype))) {
-                    promise.reject("COMMAND_NOT_SEND");
-                    return;
+                String line = rowsToPrint[i].toString();
+                if (containsArabicCharacters(line)) {
+                    Bitmap bmp = renderTextToBitmap(line, deviceWidth);
+                    if (bmp != null) {
+                        byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
+                        if (!sendDataByte(data)) {
+                            promise.reject("COMMAND_NOT_SEND");
+                            return;
+                        }
+                    }
+                } else {
+                    if (!sendDataByte(PrinterCommand.POS_Print_Text(line, encoding, codepage, widthTimes, heigthTimes, fonttype))) {
+                        promise.reject("COMMAND_NOT_SEND");
+                        return;
+                    }
                 }
             }catch (Exception e){
                 e.printStackTrace();
@@ -449,7 +480,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
     @ReactMethod
     public void cutOnePoint() {
         try{
-            byte[] command = PrinterCommand.POS_Cut_One_Point();
+            byte[] command = PrinterCommand.POS_Set_Cut(1);
             sendDataByte(command);
 
          }catch (Exception e){
@@ -478,6 +509,105 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
             return true;
         }
         return false;
+    }
+
+    /**
+     * Detect if a string contains Arabic characters.
+     */
+    private static boolean containsArabicCharacters(String value) {
+        if (value == null || value.length() == 0) return false;
+        for (int i = 0; i < value.length(); i++) {
+            Character.UnicodeBlock block = Character.UnicodeBlock.of(value.charAt(i));
+            if (block == Character.UnicodeBlock.ARABIC
+                    || block == Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_A
+                    || block == Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_B
+                    || block == Character.UnicodeBlock.ARABIC_SUPPLEMENT) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Render text (including Arabic shaping/RTL) into a bitmap sized to printer width.
+     */
+    private Bitmap renderTextToBitmap(String text, int targetWidth) {
+        return renderTextToBitmap(text, targetWidth, false);
+    }
+
+    private Bitmap renderTextToBitmap(String text, int targetWidth, boolean center) {
+        TextPaint paint = new TextPaint();
+        paint.setAntiAlias(true);
+        paint.setColor(Color.BLACK);
+        paint.setTextSize(24);
+
+        CharSequence sequence = text;
+        if (TextUtils.getLayoutDirectionFromLocale(java.util.Locale.forLanguageTag("ar")) == View.LAYOUT_DIRECTION_RTL) {
+            sequence = "\u200F" + text; // RLM to encourage RTL
+        }
+
+        StaticLayout layout;
+        try {
+            layout = new StaticLayout(sequence, paint, targetWidth, center ? Layout.Alignment.ALIGN_CENTER : Layout.Alignment.ALIGN_NORMAL, 1.2f, 0f, false);
+        } catch (Throwable t) {
+            return null;
+        }
+
+        int bmpWidth = targetWidth;
+        int bmpHeight = layout.getHeight();
+        if (bmpHeight <= 0) bmpHeight = (int)(paint.getTextSize() * 2);
+
+        Bitmap bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.drawColor(Color.WHITE);
+        canvas.save();
+        layout.draw(canvas);
+        canvas.restore();
+        return bitmap;
+    }
+
+    /**
+     * Print centered text (bitmap for Arabic; ESC/POS alignment for others)
+     */
+    @ReactMethod
+    public void printTextCentered(String text, @Nullable ReadableMap options, final Promise promise) {
+        try {
+            String encoding = "GBK";
+            int codepage = 0;
+            int widthTimes = 0;
+            int heigthTimes=0;
+            int fonttype=0;
+            if(options!=null) {
+                encoding = options.hasKey("encoding") ? options.getString("encoding") : "GBK";
+                codepage = options.hasKey("codepage") ? options.getInt("codepage") : 0;
+                widthTimes = options.hasKey("widthtimes") ? options.getInt("widthtimes") : 0;
+                heigthTimes = options.hasKey("heigthtimes") ? options.getInt("heigthtimes") : 0;
+                fonttype = options.hasKey("fonttype") ? options.getInt("fonttype") : 0;
+            }
+
+            if (containsArabicCharacters(text)) {
+                Bitmap bmp = renderTextToBitmap(text, deviceWidth, true);
+                if (bmp != null) {
+                    byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
+                    if (sendDataByte(data)) {
+                        promise.resolve(null);
+                    } else {
+                        promise.reject("COMMAND_NOT_SEND");
+                    }
+                } else {
+                    promise.reject("AR_RENDER_FAILED");
+                }
+            } else {
+                // ESC/POS center align -> print -> left align
+                if (!sendDataByte(PrinterCommand.POS_S_Align(1))) { promise.reject("COMMAND_NOT_SEND"); return; }
+                byte[] bytes = PrinterCommand.POS_Print_Text(text, encoding, codepage, widthTimes, heigthTimes, fonttype);
+                if (!sendDataByte(bytes)) { promise.reject("COMMAND_NOT_SEND"); return; }
+                if (!sendDataByte(PrinterCommand.POS_S_Align(0))) { promise.reject("COMMAND_NOT_SEND"); return; }
+                promise.resolve(null);
+            }
+        } catch (Exception e) {
+            promise.reject(e.getMessage(), e);
+        }
     }
 
     @Override
