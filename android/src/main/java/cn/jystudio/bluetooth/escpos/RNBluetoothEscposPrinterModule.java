@@ -173,7 +173,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 
                 if (bmp != null) {
                     try {
-                        byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
+                    byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
                         if (data != null && sendDataByte(data)) {
                             promise.resolve(null);
                             return;
@@ -374,7 +374,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                     
                     if (bmp != null) {
                         try {
-                            byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
+                        byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
                             if (data != null && sendDataByte(data)) {
                                 // Success, continue to next row
                                 continue;
@@ -452,6 +452,34 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
             return 18; // Smaller text for older devices
         } else {
             return 24; // Standard text size
+        }
+    }
+
+    /**
+     * Create a properly centered Arabic text bitmap
+     */
+    private Bitmap createCenteredArabicBitmap(String text, int targetWidth, TextPaint paint) {
+        try {
+            int bmpWidth = Math.min(targetWidth, 384);
+            int bmpHeight = isOldAndroidVersion() ? 25 : 30;
+            
+            Bitmap bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, getOptimalBitmapConfig());
+            Canvas canvas = new Canvas(bitmap);
+            canvas.drawColor(Color.WHITE);
+            
+            // For Arabic text, we need to handle the text direction properly
+            // Measure the text width and center it
+            float textWidth = paint.measureText(text);
+            float x = (bmpWidth - textWidth) / 2;
+            float y = isOldAndroidVersion() ? 18 : 20;
+            
+            // Draw the text centered
+            canvas.drawText(text, Math.max(0, x), y, paint);
+            
+            return bitmap;
+        } catch (Exception e) {
+            Log.e(TAG, "Error in createCenteredArabicBitmap: " + e.getMessage());
+            return null;
         }
     }
 
@@ -662,8 +690,9 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
             // Simple RTL handling for Android 4.2.2 compatibility
             CharSequence sequence = text;
             if (containsArabicCharacters(text)) {
-                // Add RLM (Right-to-Left Mark) for proper Arabic rendering
-                sequence = "\u200F" + text + "\u200F";
+                // For centered text, don't add RLM marks that force right alignment
+                // Just use the text as-is for proper centering
+                sequence = text;
             }
 
             StaticLayout layout = null;
@@ -681,10 +710,18 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 }
             } catch (Exception e) {
                 Log.e(TAG, "StaticLayout creation failed: " + e.getMessage());
+                // For Arabic text with centering, use the specialized method
+                if (containsArabicCharacters(text) && center) {
+                    return createCenteredArabicBitmap(text, targetWidth, paint);
+                }
                 return createSimpleTextBitmap(text, targetWidth, paint, center);
             }
 
             if (layout == null) {
+                // For Arabic text with centering, use the specialized method
+                if (containsArabicCharacters(text) && center) {
+                    return createCenteredArabicBitmap(text, targetWidth, paint);
+                }
                 return createSimpleTextBitmap(text, targetWidth, paint, center);
             }
 
@@ -698,6 +735,10 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
             
             if (requiredMemory > availableMemory * 0.5) { // Use max 50% of available memory
                 Log.w(TAG, "Insufficient memory for bitmap creation, using fallback");
+                // For Arabic text with centering, use the specialized method
+                if (containsArabicCharacters(text) && center) {
+                    return createCenteredArabicBitmap(text, targetWidth, paint);
+                }
                 return createSimpleTextBitmap(text, targetWidth, paint, center);
             }
 
@@ -714,7 +755,14 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 // Draw text with proper positioning
                 canvas.save();
                 if (center) {
-                    float textWidth = paint.measureText(sequence.toString());
+                    // For Arabic text, measure the actual rendered width
+                    float textWidth;
+                    if (containsArabicCharacters(text)) {
+                        // For Arabic text, use the layout width for better centering
+                        textWidth = layout.getWidth();
+                    } else {
+                        textWidth = paint.measureText(sequence.toString());
+                    }
                     float x = (bmpWidth - textWidth) / 2;
                     canvas.translate(Math.max(0, x), 0);
                 }
@@ -726,6 +774,10 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 Log.e(TAG, "OutOfMemoryError creating bitmap: " + e.getMessage());
                 if (bitmap != null && !bitmap.isRecycled()) {
                     bitmap.recycle();
+                }
+                // For Arabic text with centering, use the specialized method
+                if (containsArabicCharacters(text) && center) {
+                    return createCenteredArabicBitmap(text, targetWidth, paint);
                 }
                 return createSimpleTextBitmap(text, targetWidth, paint, center);
             }
@@ -744,8 +796,8 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
             int bmpHeight = isOldAndroidVersion() ? 25 : 30; // Smaller height for older devices
             
             Bitmap bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, getOptimalBitmapConfig());
-            Canvas canvas = new Canvas(bitmap);
-            canvas.drawColor(Color.WHITE);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.drawColor(Color.WHITE);
             
             float x = 0;
             if (center) {
@@ -754,8 +806,15 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
             }
             
             float y = isOldAndroidVersion() ? 18 : 20; // Adjust Y position for older devices
-            canvas.drawText(text, Math.max(0, x), y, paint);
-            return bitmap;
+            
+            // For Arabic text, ensure proper centering
+            if (containsArabicCharacters(text) && center) {
+                // Draw text with proper alignment for Arabic
+                canvas.drawText(text, Math.max(0, x), y, paint);
+            } else {
+                canvas.drawText(text, Math.max(0, x), y, paint);
+            }
+        return bitmap;
         } catch (Exception e) {
             Log.e(TAG, "Error in createSimpleTextBitmap: " + e.getMessage());
             return null;
@@ -800,7 +859,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 
                 if (bmp != null) {
                     try {
-                        byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
+                    byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
                         if (data != null && sendDataByte(data)) {
                             promise.resolve(null);
                             return;
@@ -852,7 +911,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                         promise.reject("COMMAND_NOT_SEND", "Failed to set center alignment"); 
                         return; 
                     }
-                    byte[] bytes = PrinterCommand.POS_Print_Text(text, encoding, codepage, widthTimes, heigthTimes, fonttype);
+                byte[] bytes = PrinterCommand.POS_Print_Text(text, encoding, codepage, widthTimes, heigthTimes, fonttype);
                     if (!sendDataByte(bytes)) { 
                         promise.reject("COMMAND_NOT_SEND", "Failed to print text"); 
                         return; 
@@ -860,7 +919,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                     if (!sendDataByte(PrinterCommand.POS_S_Align(0))) { 
                         Log.w(TAG, "Failed to reset alignment, but text was printed");
                     }
-                    promise.resolve(null);
+                promise.resolve(null);
                 } catch (Exception e) {
                     Log.e(TAG, "Centered text printing error: " + e.getMessage());
                     promise.reject("PRINT_ERROR", e.getMessage(), e);
