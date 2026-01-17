@@ -26,6 +26,9 @@ import com.google.zxing.qrcode.QRCodeWriter;
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel;
 
 import javax.annotation.Nullable;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.*;
 
@@ -517,6 +520,80 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
             sendDataByte(PrinterCommand.POS_Set_Cut(1));
             sendDataByte(PrinterCommand.POS_Set_PrtInit());
         }
+    }
+
+    @ReactMethod
+    public void printPicFromURL(final String picUrl, @Nullable final ReadableMap options, final Promise promise) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                HttpURLConnection connection = null;
+                InputStream input = null;
+                try {
+                    URL url = new URL(picUrl);
+                    connection = (HttpURLConnection) url.openConnection();
+                    connection.setDoInput(true);
+                    connection.setConnectTimeout(10000);
+                    connection.setReadTimeout(10000);
+                    connection.connect();
+                    
+                    int responseCode = connection.getResponseCode();
+                    if (responseCode != HttpURLConnection.HTTP_OK) {
+                        promise.reject("URL_ERROR", "Failed to download image, response code: " + responseCode);
+                        return;
+                    }
+                    
+                    input = connection.getInputStream();
+                    Bitmap mBitmap = BitmapFactory.decodeStream(input);
+                    
+                    if (mBitmap == null) {
+                        promise.reject("DECODE_ERROR", "Failed to decode image from URL");
+                        return;
+                    }
+
+                    int width = 0;
+                    int leftPadding = 0;
+                    if(options != null){
+                        width = options.hasKey("width") ? options.getInt("width") : 0;
+                        leftPadding = options.hasKey("left") ? options.getInt("left") : 0;
+                    }
+
+                    // cannot larger then deviceWidth;
+                    if(width > deviceWidth || width == 0){
+                        width = deviceWidth;
+                    }
+
+                    int nMode = 0;
+                    byte[] data = PrintPicture.POS_PrintBMP(mBitmap, width, nMode, leftPadding);
+                    
+                    if (sendDataByte(Command.ESC_Init) &&
+                        sendDataByte(Command.LF) &&
+                        sendDataByte(data) &&
+                        sendDataByte(PrinterCommand.POS_Set_PrtAndFeedPaper(30)) &&
+                        sendDataByte(PrinterCommand.POS_Set_Cut(1)) &&
+                        sendDataByte(PrinterCommand.POS_Set_PrtInit())) {
+                        promise.resolve(null);
+                    } else {
+                        promise.reject("COMMAND_NOT_SEND", "Failed to send image data to printer");
+                    }
+                    
+                    // Clean up bitmap
+                    if (!mBitmap.isRecycled()) {
+                        mBitmap.recycle();
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "printPicFromURL error: " + e.getMessage());
+                    promise.reject("PRINT_ERROR", e.getMessage(), e);
+                } finally {
+                    try {
+                        if (input != null) input.close();
+                        if (connection != null) connection.disconnect();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error closing connection: " + e.getMessage());
+                    }
+                }
+            }
+        }).start();
     }
 
 
