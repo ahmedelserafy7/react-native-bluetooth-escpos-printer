@@ -466,9 +466,9 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
      */
     private int getOptimalTextSize() {
         if (isOldAndroidVersion()) {
-            return 16; // Smaller text for older devices
+            return 20; // Increased for better readability on legacy
         } else {
-            return 20; // Reduced from 24 to make it thinner and sharper
+            return 24; // Restored to 24 as requested
         }
     }
 
@@ -478,7 +478,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
     private Bitmap createCenteredArabicBitmap(String text, int targetWidth, TextPaint paint) {
         try {
             int bmpWidth = Math.min(targetWidth, 384);
-            int bmpHeight = isOldAndroidVersion() ? 25 : 30;
+            int bmpHeight = isOldAndroidVersion() ? 34 : 40;
             
             Bitmap bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, getOptimalBitmapConfig());
             Canvas canvas = new Canvas(bitmap);
@@ -488,7 +488,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
             // Measure the text width and center it
             float textWidth = paint.measureText(text);
             float x = (bmpWidth - textWidth) / 2;
-            float y = isOldAndroidVersion() ? 18 : 20;
+            float y = isOldAndroidVersion() ? 26 : 30;
             
             // Draw the text centered
             canvas.drawText(text, Math.max(0, x), y, paint);
@@ -875,7 +875,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
     private Bitmap createSimpleTextBitmap(String text, int targetWidth, TextPaint paint, boolean center) {
         try {
             int bmpWidth = Math.min(targetWidth, 384);
-            int bmpHeight = isOldAndroidVersion() ? 25 : 30;
+            int bmpHeight = isOldAndroidVersion() ? 34 : 40;
             
             Bitmap bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, getOptimalBitmapConfig());
             Canvas canvas = new Canvas(bitmap);
@@ -891,7 +891,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 x = CONTENT_SIDE_MARGIN;
             }
             
-            float y = isOldAndroidVersion() ? 18 : 20;
+            float y = isOldAndroidVersion() ? 26 : 30;
             canvas.drawText(text, Math.max(0, x), y, paint);
 
             return bitmap;
@@ -934,8 +934,16 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 sendDataByte(Command.ESC_ExclamationMark);
             }
 
-            if (containsArabicCharacters(text)) {
-                Log.d(TAG, "Printing centered Arabic text: " + text);
+            // SURGICAL FIX: Check if we explicitly requested high-fidelity bitmap font
+            boolean forceBitmap = false;
+            if (text.startsWith("##BITMAP##")) {
+                forceBitmap = true;
+                text = text.replace("##BITMAP##", "");
+                Log.d(TAG, "Surgical bitmap font requested for: " + text);
+            }
+
+            if (containsArabicCharacters(text) || forceBitmap) {
+                Log.d(TAG, "Printing centered text (bitmap engine): " + text);
                 
                 // Try bitmap rendering first — center=true, no side margins
                 Bitmap bmp = null;
@@ -951,8 +959,8 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                         if (data != null && sendDataByte(data)) {
                             promise.resolve(null);
                             return;
-                        } else {
-                            Log.w(TAG, "Centered bitmap printing failed, trying fallback");
+                        } else if (forceBitmap) {
+                             Log.w(TAG, "Forced bitmap font failed, falling back to standard");
                         }
                     } catch (Exception e) {
                         Log.e(TAG, "Centered bitmap printing error: " + e.getMessage());
@@ -963,54 +971,52 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                     }
                 }
                 
-                // Fallback: Use ESC/POS center alignment with UTF-8
-                Log.d(TAG, "Using fallback centered text printing for Arabic");
-                try {
-                    if (sendDataByte(PrinterCommand.POS_S_Align(1))) {
-                        byte[] bytes = PrinterCommand.POS_Print_Text(text, "UTF-8", 0, widthTimes, heigthTimes, fonttype);
-                        if (sendDataByte(bytes)) {
-                            sendDataByte(PrinterCommand.POS_S_Align(0)); // Reset alignment
-                            promise.resolve(null);
-                            return;
+                // Fallback for Arabic (Standard ESC/POS commands)
+                if (containsArabicCharacters(text)) {
+                    Log.d(TAG, "Using fallback centered text printing for Arabic");
+                    try {
+                        if (sendDataByte(PrinterCommand.POS_S_Align(1))) {
+                            byte[] bytes = PrinterCommand.POS_Print_Text(text, "UTF-8", 0, widthTimes, heigthTimes, fonttype);
+                            if (sendDataByte(bytes)) {
+                                sendDataByte(PrinterCommand.POS_S_Align(0)); // Reset alignment
+                                promise.resolve(null);
+                                return;
+                            }
                         }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Centered UTF-8 fallback failed: " + e.getMessage());
                     }
-                } catch (Exception e) {
-                    Log.e(TAG, "Centered UTF-8 fallback failed: " + e.getMessage());
                 }
-                
-                // Last resort: Print as ASCII with question marks, centered
-                String asciiText = text.replaceAll("[^\\x00-\\x7F]", "?");
-                if (sendDataByte(PrinterCommand.POS_S_Align(1))) {
-                    byte[] bytes = PrinterCommand.POS_Print_Text(asciiText, encoding, codepage, widthTimes, heigthTimes, fonttype);
-                    if (sendDataByte(bytes)) {
-                        sendDataByte(PrinterCommand.POS_S_Align(0)); // Reset alignment
-                        promise.resolve(null);
-                    } else {
-                        promise.reject("AR_RENDER_FAILED", "All centered Arabic text rendering methods failed");
-                    }
-                } else {
-                    promise.reject("COMMAND_NOT_SEND", "Failed to set center alignment");
-                }
-            } else {
-                // ESC/POS center align -> print -> left align
+            }
+
+            // Standard ESC/POS path for non-Arabic (or if bitmap failed/not requested)
+            if (!containsArabicCharacters(text)) {
                 try {
                     if (!sendDataByte(PrinterCommand.POS_S_Align(1))) { 
                         promise.reject("COMMAND_NOT_SEND", "Failed to set center alignment"); 
                         return; 
                     }
-                byte[] bytes = PrinterCommand.POS_Print_Text(text, encoding, codepage, widthTimes, heigthTimes, fonttype);
+                    byte[] bytes = PrinterCommand.POS_Print_Text(text, encoding, codepage, widthTimes, heigthTimes, fonttype/10); // Use standard font for standard text
+                    if (fonttype == 0) {
+                        // Reset everything
+                        sendDataByte(Command.ESC_ExclamationMark);
+                    }
+                    bytes = PrinterCommand.POS_Print_Text(text, encoding, codepage, widthTimes, heigthTimes, fonttype);
+
                     if (!sendDataByte(bytes)) { 
                         promise.reject("COMMAND_NOT_SEND", "Failed to print text"); 
                         return; 
                     }
                     if (!sendDataByte(PrinterCommand.POS_S_Align(0))) { 
-                        Log.w(TAG, "Failed to reset alignment, but text was printed");
+                        Log.w(TAG, "Failed to reset alignment");
                     }
-                promise.resolve(null);
+                    promise.resolve(null);
                 } catch (Exception e) {
-                    Log.e(TAG, "Centered text printing error: " + e.getMessage());
+                    Log.e(TAG, "Centered text standard path failed: " + e.getMessage());
                     promise.reject("PRINT_ERROR", e.getMessage(), e);
                 }
+            } else {
+                promise.reject("AR_RENDER_FAILED", "All centered Arabic text rendering methods failed");
             }
         } catch (Exception e) {
             Log.e(TAG, "printTextCentered error: " + e.getMessage());
