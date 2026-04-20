@@ -1,8 +1,8 @@
-
 package cn.jystudio.bluetooth.escpos;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Typeface;
 import android.util.Base64;
 import android.util.Log;
 import android.text.Layout;
@@ -38,6 +38,14 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
 
     public static final int WIDTH_58 = 384;
     public static final int WIDTH_80 = 576;
+
+    /**
+     * Horizontal margin (in pixels) applied to each side of non-centered (content) rows.
+     * This indents key-value receipt lines away from the paper edge for a cleaner look.
+     * 20px ≈ 1.5 characters on 58mm paper at default font size.
+     */
+    private static final int CONTENT_SIDE_MARGIN = 20;
+
     private final ReactApplicationContext reactContext;
     /******************************************************************************************************/
 
@@ -161,6 +169,14 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 fonttype = options.hasKey("fonttype") ? options.getInt("fonttype") : 0;
             }
             
+            // Explicitly set bold state based on fonttype to prevent "sticky" bold state
+            sendDataByte(PrinterCommand.POS_Set_Bold(fonttype > 0 ? 1 : 0));
+            
+            // NUCLEAR OPTION: Global Style Reset (ESC ! 0) if regular font requested
+            if (fonttype == 0) {
+                sendDataByte(Command.ESC_ExclamationMark);
+            }
+            
             String toPrint = text;
             
             if (containsArabicCharacters(toPrint)) {
@@ -169,7 +185,8 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 // Try bitmap rendering first
                 Bitmap bmp = null;
                 try {
-                    bmp = renderTextToBitmap(toPrint, deviceWidth);
+                    // center=false for printText — applies CONTENT_SIDE_MARGIN indentation
+                    bmp = renderTextToBitmap(toPrint, deviceWidth, false, fonttype > 0);
                 } catch (Exception e) {
                     Log.e(TAG, "Bitmap rendering failed: " + e.getMessage());
                 }
@@ -258,18 +275,6 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
         }
         Log.d(TAG,"encoding: "+encoding);
 
-        /**
-         * [column1-1,
-         * column1-2,
-         * column1-3 ... column1-n]
-         * ,
-         *  [column2-1,
-         * column2-2,
-         * column2-3 ... column2-n]
-         *
-         * ...
-         *
-         */
         List<List<String>> table = new ArrayList<List<String>>();
 
         /**splits the column text to few rows and applies the alignment **/
@@ -370,7 +375,16 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                     // Try bitmap rendering first
                     Bitmap bmp = null;
                     try {
-                        bmp = renderTextToBitmap(line, deviceWidth);
+                        // Explicitly set bold state for column text
+                        sendDataByte(PrinterCommand.POS_Set_Bold(fonttype > 0 ? 1 : 0));
+                        
+                        // NUCLEAR OPTION: Global Style Reset (ESC ! 0) if regular font requested
+                        if (fonttype == 0) {
+                            sendDataByte(Command.ESC_ExclamationMark);
+                        }
+
+                        // center=false — applies CONTENT_SIDE_MARGIN indentation
+                        bmp = renderTextToBitmap(line, deviceWidth, false, fonttype > 0);
                     } catch (Exception e) {
                         Log.e(TAG, "Column bitmap rendering failed: " + e.getMessage());
                     }
@@ -452,9 +466,9 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
      */
     private int getOptimalTextSize() {
         if (isOldAndroidVersion()) {
-            return 18; // Smaller text for older devices
+            return 16; // Smaller text for older devices
         } else {
-            return 24; // Standard text size
+            return 20; // Reduced from 24 to make it thinner and sharper
         }
     }
 
@@ -504,15 +518,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
         Bitmap mBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
         int nMode = 0;
         if (mBitmap != null) {
-            /**
-             * Parameters:
-             * mBitmap  要打印的图片
-             * nWidth   打印宽度（58和80）
-             * nMode    打印模式
-             * Returns: byte[]
-             */
             byte[] data = PrintPicture.POS_PrintBMP(mBitmap, width, nMode, leftPadding);
-            //  SendDataByte(buffer);
             sendDataByte(Command.ESC_Init);
             sendDataByte(Command.LF);
             sendDataByte(data);
@@ -631,7 +637,6 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
     public void printQRCode(String content, int size, int correctionLevel, final Promise promise) {
         try {
             Log.i(TAG, "生成的文本：" + content);
-            // 把输入的文本转为二维码
             Hashtable<EncodeHintType, Object> hints = new Hashtable<EncodeHintType, Object>();
             hints.put(EncodeHintType.CHARACTER_SET, "utf-8");
             hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.forBits(correctionLevel));
@@ -660,7 +665,6 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
 
             bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
 
-            //TODO: may need a left padding to align center.
             byte[] data = PrintPicture.POS_PrintBMP(bitmap, size, 0, 0);
             if (sendDataByte(data)) {
                 promise.resolve(null);
@@ -745,12 +749,16 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
     /**
      * Render text (including Arabic shaping/RTL) into a bitmap sized to printer width.
      * Enhanced for Android 4.2.2 compatibility with better memory management and error handling.
+     *
+     * When center=false (content/left-aligned rows), CONTENT_SIDE_MARGIN pixels are inset
+     * on each side so key-value rows don't print edge-to-edge.
+     * When center=true (header/footer rows), the full width is used unchanged.
      */
-    private Bitmap renderTextToBitmap(String text, int targetWidth) {
-        return renderTextToBitmap(text, targetWidth, false);
+    private Bitmap renderTextToBitmap(String text, int targetWidth, boolean bold) {
+        return renderTextToBitmap(text, targetWidth, false, bold);
     }
 
-    private Bitmap renderTextToBitmap(String text, int targetWidth, boolean center) {
+    private Bitmap renderTextToBitmap(String text, int targetWidth, boolean center, boolean bold) {
         if (text == null || text.trim().isEmpty()) {
             return null;
         }
@@ -758,36 +766,43 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
         try {
             // Use device-specific bitmap configuration
             Bitmap.Config config = getOptimalBitmapConfig();
+
+            // ── MARGIN LOGIC ──────────────────────────────────────────────────────────
+            // For non-centered (content) rows we shrink the text layout width by
+            // CONTENT_SIDE_MARGIN on each side, then translate the canvas so the text
+            // is drawn inset from the paper edge. Centered rows use the full width.
+            final int sideMargin = center ? 0 : CONTENT_SIDE_MARGIN;
+            final int contentWidth = targetWidth - sideMargin * 2;
+            // ─────────────────────────────────────────────────────────────────────────
             
             TextPaint paint = new TextPaint();
-            paint.setAntiAlias(!isOldAndroidVersion()); // Disable anti-aliasing for older devices
+            paint.setAntiAlias(false); // FORCE OFF to prevent blurry/thick edges
             paint.setColor(Color.BLACK);
-            paint.setTextSize(getOptimalTextSize()); // Device-specific text size
+            paint.setTextSize(getOptimalTextSize());
             
-            // Simple RTL handling for Android 4.2.2 compatibility
+            // DYNAMIC FONT WEIGHT:
+            // Explicitly set weight based on the 'bold' parameter
+            paint.setTypeface(Typeface.create(Typeface.SANS_SERIF, bold ? Typeface.BOLD : Typeface.NORMAL));
+            paint.setFakeBoldText(bold);
+            paint.setStrokeWidth(0);
+            paint.setLinearText(true);
+            paint.setSubpixelText(false);
+
             CharSequence sequence = text;
-            if (containsArabicCharacters(text)) {
-                // For centered text, don't add RLM marks that force right alignment
-                // Just use the text as-is for proper centering
-                sequence = text;
-            }
 
             StaticLayout layout = null;
             try {
-                // Use simpler StaticLayout constructor for Android 4.2.2 compatibility
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                    layout = new StaticLayout(sequence, paint, targetWidth, 
-                        center ? Layout.Alignment.ALIGN_CENTER : Layout.Alignment.ALIGN_NORMAL, 
+                    layout = new StaticLayout(sequence, paint, contentWidth,
+                        center ? Layout.Alignment.ALIGN_CENTER : Layout.Alignment.ALIGN_NORMAL,
                         1.0f, 0f, false);
                 } else {
-                    // Fallback for older Android versions
-                    layout = new StaticLayout(sequence, paint, targetWidth, 
-                        center ? Layout.Alignment.ALIGN_CENTER : Layout.Alignment.ALIGN_NORMAL, 
+                    layout = new StaticLayout(sequence, paint, contentWidth,
+                        center ? Layout.Alignment.ALIGN_CENTER : Layout.Alignment.ALIGN_NORMAL,
                         1.0f, 0f, false);
                 }
             } catch (Exception e) {
                 Log.e(TAG, "StaticLayout creation failed: " + e.getMessage());
-                // For Arabic text with centering, use the specialized method
                 if (containsArabicCharacters(text) && center) {
                     return createCenteredArabicBitmap(text, targetWidth, paint);
                 }
@@ -795,24 +810,23 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
             }
 
             if (layout == null) {
-                // For Arabic text with centering, use the specialized method
                 if (containsArabicCharacters(text) && center) {
                     return createCenteredArabicBitmap(text, targetWidth, paint);
                 }
                 return createSimpleTextBitmap(text, targetWidth, paint, center);
             }
 
-            int bmpWidth = Math.min(targetWidth, 384); // Limit width for memory efficiency
-            int bmpHeight = Math.max(layout.getHeight(), 20); // Ensure minimum height
+            // Bitmap always spans the full paper width so the printer fills the line
+            int bmpWidth = Math.min(targetWidth, 384);
+            int bmpHeight = Math.max(layout.getHeight(), 20);
             
             // Check available memory before creating bitmap
             Runtime runtime = Runtime.getRuntime();
             long availableMemory = runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory());
             long requiredMemory = (long) bmpWidth * bmpHeight * 2; // RGB_565 = 2 bytes per pixel
             
-            if (requiredMemory > availableMemory * 0.5) { // Use max 50% of available memory
+            if (requiredMemory > availableMemory * 0.5) {
                 Log.w(TAG, "Insufficient memory for bitmap creation, using fallback");
-                // For Arabic text with centering, use the specialized method
                 if (containsArabicCharacters(text) && center) {
                     return createCenteredArabicBitmap(text, targetWidth, paint);
                 }
@@ -829,19 +843,20 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 Canvas canvas = new Canvas(bitmap);
                 canvas.drawColor(Color.WHITE);
                 
-                // Draw text with proper positioning
                 canvas.save();
                 if (center) {
-                    // For Arabic text, measure the actual rendered width
+                    // Centered rows: translate so text is visually centred
                     float textWidth;
                     if (containsArabicCharacters(text)) {
-                        // For Arabic text, use the layout width for better centering
                         textWidth = layout.getWidth();
                     } else {
                         textWidth = paint.measureText(sequence.toString());
                     }
                     float x = (bmpWidth - textWidth) / 2;
                     canvas.translate(Math.max(0, x), 0);
+                } else {
+                    // Content rows: translate inward by sideMargin to create symmetric padding
+                    canvas.translate(sideMargin, 0);
                 }
                 layout.draw(canvas);
                 canvas.restore();
@@ -852,7 +867,6 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 if (bitmap != null && !bitmap.isRecycled()) {
                     bitmap.recycle();
                 }
-                // For Arabic text with centering, use the specialized method
                 if (containsArabicCharacters(text) && center) {
                     return createCenteredArabicBitmap(text, targetWidth, paint);
                 }
@@ -865,33 +879,32 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
     }
 
     /**
-     * Fallback method to create a simple text bitmap when StaticLayout fails
+     * Fallback method to create a simple text bitmap when StaticLayout fails.
+     * Applies CONTENT_SIDE_MARGIN for non-centered rows to match the main path.
      */
     private Bitmap createSimpleTextBitmap(String text, int targetWidth, TextPaint paint, boolean center) {
         try {
             int bmpWidth = Math.min(targetWidth, 384);
-            int bmpHeight = isOldAndroidVersion() ? 25 : 30; // Smaller height for older devices
+            int bmpHeight = isOldAndroidVersion() ? 25 : 30;
             
             Bitmap bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, getOptimalBitmapConfig());
-        Canvas canvas = new Canvas(bitmap);
-        canvas.drawColor(Color.WHITE);
+            Canvas canvas = new Canvas(bitmap);
+            canvas.drawColor(Color.WHITE);
             
-            float x = 0;
+            float x;
             if (center) {
+                // Center: compute offset from full width
                 float textWidth = paint.measureText(text);
                 x = (bmpWidth - textWidth) / 2;
-            }
-            
-            float y = isOldAndroidVersion() ? 18 : 20; // Adjust Y position for older devices
-            
-            // For Arabic text, ensure proper centering
-            if (containsArabicCharacters(text) && center) {
-                // Draw text with proper alignment for Arabic
-                canvas.drawText(text, Math.max(0, x), y, paint);
             } else {
-                canvas.drawText(text, Math.max(0, x), y, paint);
+                // Content rows: inset by CONTENT_SIDE_MARGIN from the left edge
+                x = CONTENT_SIDE_MARGIN;
             }
-        return bitmap;
+            
+            float y = isOldAndroidVersion() ? 18 : 20;
+            canvas.drawText(text, Math.max(0, x), y, paint);
+
+            return bitmap;
         } catch (Exception e) {
             Log.e(TAG, "Error in createSimpleTextBitmap: " + e.getMessage());
             return null;
@@ -923,13 +936,21 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                 fonttype = options.hasKey("fonttype") ? options.getInt("fonttype") : 0;
             }
 
+            // Explicitly set bold state based on fonttype to prevent "sticky" bold state
+            sendDataByte(PrinterCommand.POS_Set_Bold(fonttype > 0 ? 1 : 0));
+
+            // NUCLEAR OPTION: Global Style Reset (ESC ! 0) if regular font requested
+            if (fonttype == 0) {
+                sendDataByte(Command.ESC_ExclamationMark);
+            }
+
             if (containsArabicCharacters(text)) {
                 Log.d(TAG, "Printing centered Arabic text: " + text);
                 
-                // Try bitmap rendering first
+                // Try bitmap rendering first — center=true, no side margins
                 Bitmap bmp = null;
                 try {
-                    bmp = renderTextToBitmap(text, deviceWidth, true);
+                    bmp = renderTextToBitmap(text, deviceWidth, true, fonttype > 0);
                 } catch (Exception e) {
                     Log.e(TAG, "Centered bitmap rendering failed: " + e.getMessage());
                 }
@@ -946,7 +967,6 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                     } catch (Exception e) {
                         Log.e(TAG, "Centered bitmap printing error: " + e.getMessage());
                     } finally {
-                        // Clean up bitmap to prevent memory leaks
                         if (bmp != null && !bmp.isRecycled()) {
                             bmp.recycle();
                         }
