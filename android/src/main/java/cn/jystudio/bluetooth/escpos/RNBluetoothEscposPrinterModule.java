@@ -519,12 +519,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
         int nMode = 0;
         if (mBitmap != null) {
             byte[] data = PrintPicture.POS_PrintBMP(mBitmap, width, nMode, leftPadding);
-            sendDataByte(Command.ESC_Init);
-            sendDataByte(Command.LF);
             sendDataByte(data);
-            sendDataByte(PrinterCommand.POS_Set_PrtAndFeedPaper(30));
-            sendDataByte(PrinterCommand.POS_Set_Cut(1));
-            sendDataByte(PrinterCommand.POS_Set_PrtInit());
         }
     }
 
@@ -572,12 +567,7 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
                     int nMode = 0;
                     byte[] data = PrintPicture.POS_PrintBMP(mBitmap, width, nMode, leftPadding);
                     
-                    if (sendDataByte(Command.ESC_Init) &&
-                        sendDataByte(Command.LF) &&
-                        sendDataByte(data) &&
-                        sendDataByte(PrinterCommand.POS_Set_PrtAndFeedPaper(30)) &&
-                        sendDataByte(PrinterCommand.POS_Set_Cut(1)) &&
-                        sendDataByte(PrinterCommand.POS_Set_PrtInit())) {
+                    if (sendDataByte(data)) {
                         promise.resolve(null);
                     } else {
                         promise.reject("COMMAND_NOT_SEND", "Failed to send image data to printer");
