@@ -39,19 +39,11 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
     public static final int WIDTH_58 = 384;
     public static final int WIDTH_80 = 576;
 
-    /**
-     * Horizontal margin (in pixels) applied to each side of non-centered (content) rows.
-     * This indents key-value receipt lines away from the paper edge for a cleaner look.
-     * 20px ≈ 1.5 characters on 58mm paper at default font size.
-     */
     private static final int CONTENT_SIDE_MARGIN = 20;
 
     private final ReactApplicationContext reactContext;
-    /******************************************************************************************************/
-
     private int deviceWidth = WIDTH_58;
     private BluetoothService mService;
-
 
     public RNBluetoothEscposPrinterModule(ReactApplicationContext reactContext,
                                           BluetoothService bluetoothService) {
@@ -66,11 +58,8 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
         return "BluetoothEscposPrinter";
     }
 
-
     @Override
-    public
-    @Nullable
-    Map<String, Object> getConstants() {
+    public @Nullable Map<String, Object> getConstants() {
         Map<String, Object> constants = new HashMap<>();
         constants.put("width58", WIDTH_58);
         constants.put("width80", WIDTH_80);
@@ -78,166 +67,92 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
     }
 
     @ReactMethod
-    public void printerInit(final Promise promise){
-        if(sendDataByte(PrinterCommand.POS_Set_PrtInit())){
-            promise.resolve(null);
-        }else{
-            promise.reject("COMMAND_NOT_SEND");
-        }
+    public void printerInit(final Promise promise) {
+        if (sendDataByte(PrinterCommand.POS_Set_PrtInit())) promise.resolve(null);
+        else promise.reject("COMMAND_NOT_SEND");
     }
 
     @ReactMethod
-    public void printAndFeed(int feed,final Promise promise){
-        if(sendDataByte(PrinterCommand.POS_Set_PrtAndFeedPaper(feed))){
-            promise.resolve(null);
-        }else{
-            promise.reject("COMMAND_NOT_SEND");
-        }
+    public void printAndFeed(int feed, final Promise promise) {
+        if (sendDataByte(PrinterCommand.POS_Set_PrtAndFeedPaper(feed))) promise.resolve(null);
+        else promise.reject("COMMAND_NOT_SEND");
     }
 
     @ReactMethod
-    public void printerLeftSpace(int sp,final Promise promise){
-        if(sendDataByte(PrinterCommand.POS_Set_LeftSP(sp))){
-            promise.resolve(null);
-        }else{
-            promise.reject("COMMAND_NOT_SEND");
-        }
+    public void printerLeftSpace(int sp, final Promise promise) {
+        if (sendDataByte(PrinterCommand.POS_Set_LeftSP(sp))) promise.resolve(null);
+        else promise.reject("COMMAND_NOT_SEND");
     }
 
     @ReactMethod
-    public void printerLineSpace(int sp,final Promise promise){
+    public void printerLineSpace(int sp, final Promise promise) {
         byte[] command = PrinterCommand.POS_Set_DefLineSpace();
-        if(sp>0){
-            command = PrinterCommand.POS_Set_LineSpace(sp);
-        }
-        if(command==null || !sendDataByte(command)){
-            promise.reject("COMMAND_NOT_SEND");
-        }else{
-            promise.resolve(null);
-        }
+        if (sp > 0) command = PrinterCommand.POS_Set_LineSpace(sp);
+        if (command == null || !sendDataByte(command)) promise.reject("COMMAND_NOT_SEND");
+        else promise.resolve(null);
     }
 
-    /**
-     * Under line switch, 0-off,1-on,2-deeper
-     * @param line 0-off,1-on,2-deeper
-     */
     @ReactMethod
-    public void printerUnderLine(int line,final Promise promise){
-        if(sendDataByte(PrinterCommand.POS_Set_UnderLine(line))){
-            promise.resolve(null);
-        }else{
-            promise.reject("COMMAND_NOT_SEND");
-        }
+    public void printerUnderLine(int line, final Promise promise) {
+        if (sendDataByte(PrinterCommand.POS_Set_UnderLine(line))) promise.resolve(null);
+        else promise.reject("COMMAND_NOT_SEND");
     }
 
-    /**
-     * When n=0 or 48, left justification is enabled
-     * When n=1 or 49, center justification is enabled
-     * When n=2 or 50, right justification is enabled
-     * @param align
-     * @param promise
-     */
     @ReactMethod
-    public void printerAlign(int align,final Promise promise){
-        Log.d(TAG,"Align:"+align);
-        if(sendDataByte(PrinterCommand.POS_S_Align(align))){
-            promise.resolve(null);
-        }else{
-            promise.reject("COMMAND_NOT_SEND");
-        }
+    public void printerAlign(int align, final Promise promise) {
+        Log.d(TAG, "Align:" + align);
+        if (sendDataByte(PrinterCommand.POS_S_Align(align))) promise.resolve(null);
+        else promise.reject("COMMAND_NOT_SEND");
     }
 
-
     @ReactMethod
-    public void printText(String text, @Nullable  ReadableMap options, final Promise promise) {
+    public void printText(String text, @Nullable ReadableMap options, final Promise promise) {
         try {
-            if (text == null || text.trim().isEmpty()) {
-                promise.resolve(null);
-                return;
-            }
+            if (text == null || text.trim().isEmpty()) { promise.resolve(null); return; }
 
             String encoding = "GBK";
-            int codepage = 0;
-            int widthTimes = 0;
-            int heigthTimes=0;
-            int fonttype=0;
-            if(options!=null) {
-                encoding = options.hasKey("encoding") ? options.getString("encoding") : "GBK";
-                codepage = options.hasKey("codepage") ? options.getInt("codepage") : 0;
-                widthTimes = options.hasKey("widthtimes") ? options.getInt("widthtimes") : 0;
-                heigthTimes = options.hasKey("heigthtimes") ? options.getInt("heigthtimes") : 0;
-                fonttype = options.hasKey("fonttype") ? options.getInt("fonttype") : 0;
+            int codepage = 0, widthTimes = 0, heigthTimes = 0, fonttype = 0;
+            if (options != null) {
+                encoding   = options.hasKey("encoding")    ? options.getString("encoding") : "GBK";
+                codepage   = options.hasKey("codepage")    ? options.getInt("codepage")    : 0;
+                widthTimes = options.hasKey("widthtimes")  ? options.getInt("widthtimes")  : 0;
+                heigthTimes= options.hasKey("heigthtimes") ? options.getInt("heigthtimes") : 0;
+                fonttype   = options.hasKey("fonttype")    ? options.getInt("fonttype")    : 0;
             }
-            
-            // Explicitly set bold state based on fonttype to prevent "sticky" bold state
+
             sendDataByte(PrinterCommand.POS_Set_Bold(fonttype > 0 ? 1 : 0));
-            
-            // NUCLEAR OPTION: Global Style Reset (ESC ! 0) if regular font requested
-            if (fonttype == 0) {
-                sendDataByte(Command.ESC_ExclamationMark);
-            }
-            
-            String toPrint = text;
-            
-            if (containsArabicCharacters(toPrint)) {
-                Log.d(TAG, "Printing Arabic text: " + toPrint);
-                
-                // Try bitmap rendering first
-                Bitmap bmp = null;
+            if (fonttype == 0) sendDataByte(Command.ESC_ExclamationMark);
+
+            // ── UNIFIED BITMAP PATH ──────────────────────────────────────────────────
+            Bitmap bmp = null;
+            try { bmp = renderTextToBitmap(text, deviceWidth, false, fonttype > 0); }
+            catch (Exception e) { Log.e(TAG, "Bitmap rendering failed: " + e.getMessage()); }
+
+            if (bmp != null) {
                 try {
-                    // center=false for printText — applies CONTENT_SIDE_MARGIN indentation
-                    bmp = renderTextToBitmap(toPrint, deviceWidth, false, fonttype > 0);
-                } catch (Exception e) {
-                    Log.e(TAG, "Bitmap rendering failed: " + e.getMessage());
-                }
-                
-                if (bmp != null) {
-                    try {
                     byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
-                        if (data != null && sendDataByte(data)) {
-                            promise.resolve(null);
-                            return;
-                        } else {
-                            Log.w(TAG, "Bitmap printing failed, trying fallback");
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Bitmap printing error: " + e.getMessage());
-                    } finally {
-                        // Clean up bitmap to prevent memory leaks
-                        if (bmp != null && !bmp.isRecycled()) {
-                            bmp.recycle();
-                        }
-                    }
-                }
-                
-                // Fallback: Try to print as regular text with UTF-8 encoding
-                Log.d(TAG, "Using fallback text printing for Arabic");
-                try {
-                    byte[] bytes = PrinterCommand.POS_Print_Text(toPrint, "UTF-8", 0, widthTimes, heigthTimes, fonttype);
-                    if (sendDataByte(bytes)) {
-                        promise.resolve(null);
-                        return;
-                    }
+                    if (data != null && sendDataByte(data)) { promise.resolve(null); return; }
                 } catch (Exception e) {
-                    Log.e(TAG, "UTF-8 fallback failed: " + e.getMessage());
-                }
-                
-                // Last resort: Print as ASCII with question marks
-                String asciiText = toPrint.replaceAll("[^\\x00-\\x7F]", "?");
-                byte[] bytes = PrinterCommand.POS_Print_Text(asciiText, encoding, codepage, widthTimes, heigthTimes, fonttype);
-                if (sendDataByte(bytes)) {
-                    promise.resolve(null);
-                } else {
-                    promise.reject("AR_RENDER_FAILED", "All Arabic text rendering methods failed");
-                }
-            } else {
-                byte[] bytes = PrinterCommand.POS_Print_Text(toPrint, encoding, codepage, widthTimes, heigthTimes, fonttype);
-                if (sendDataByte(bytes)) {
-                    promise.resolve(null);
-                } else {
-                    promise.reject("COMMAND_NOT_SEND");
+                    Log.e(TAG, "Bitmap printing error: " + e.getMessage());
+                } finally {
+                    if (!bmp.isRecycled()) bmp.recycle();
                 }
             }
+
+            // ── FALLBACK ─────────────────────────────────────────────────────────────
+            String toPrint = text;
+            if (containsArabicCharacters(toPrint)) {
+                try {
+                    if (sendDataByte(PrinterCommand.POS_Print_Text(toPrint, "UTF-8", 0, widthTimes, heigthTimes, fonttype))) {
+                        promise.resolve(null); return;
+                    }
+                } catch (Exception e) { Log.e(TAG, "UTF-8 fallback failed: " + e.getMessage()); }
+                toPrint = toPrint.replaceAll("[^\\x00-\\x7F]", "?");
+            }
+            byte[] bytes = PrinterCommand.POS_Print_Text(toPrint, encoding, codepage, widthTimes, heigthTimes, fonttype);
+            if (sendDataByte(bytes)) promise.resolve(null);
+            else promise.reject("COMMAND_NOT_SEND");
+
         } catch (Exception e) {
             Log.e(TAG, "printText error: " + e.getMessage());
             promise.reject("PRINT_ERROR", e.getMessage(), e);
@@ -245,778 +160,445 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
     }
 
     @ReactMethod
-    public void printColumn(ReadableArray columnWidths,ReadableArray columnAligns,ReadableArray columnTexts,
-                            @Nullable ReadableMap options,final Promise promise){
-        if(columnWidths.size()!=columnTexts.size() || columnWidths.size()!=columnAligns.size()){
-            promise.reject("COLUMN_WIDTHS_ALIGNS_AND_TEXTS_NOT_MATCH");
-            return;
+    public void printColumn(ReadableArray columnWidths, ReadableArray columnAligns, ReadableArray columnTexts,
+                            @Nullable ReadableMap options, final Promise promise) {
+        if (columnWidths.size() != columnTexts.size() || columnWidths.size() != columnAligns.size()) {
+            promise.reject("COLUMN_WIDTHS_ALIGNS_AND_TEXTS_NOT_MATCH"); return;
         }
-            int totalLen = 0;
-            for(int i=0;i<columnWidths.size();i++){
-                totalLen+=columnWidths.getInt(i);
-            }
-            int maxLen = deviceWidth/8;
-            if(totalLen>maxLen){
-                promise.reject("COLUNM_WIDTHS_TOO_LARGE");
-                return;
-            }
+        int totalLen = 0;
+        for (int i = 0; i < columnWidths.size(); i++) totalLen += columnWidths.getInt(i);
+        if (totalLen > deviceWidth / 8) { promise.reject("COLUNM_WIDTHS_TOO_LARGE"); return; }
 
         String encoding = "GBK";
-        int codepage = 0;
-        int widthTimes = 0;
-        int heigthTimes = 0;
-        int fonttype = 0;
+        int codepage = 0, widthTimes = 0, heigthTimes = 0, fonttype = 0;
         if (options != null) {
-            encoding = options.hasKey("encoding") ? options.getString("encoding") : "GBK";
-            codepage = options.hasKey("codepage") ? options.getInt("codepage") : 0;
-            widthTimes = options.hasKey("widthtimes") ? options.getInt("widthtimes") : 0;
-            heigthTimes = options.hasKey("heigthtimes") ? options.getInt("heigthtimes") : 0;
-            fonttype = options.hasKey("fonttype") ? options.getInt("fonttype") : 0;
+            encoding   = options.hasKey("encoding")    ? options.getString("encoding") : "GBK";
+            codepage   = options.hasKey("codepage")    ? options.getInt("codepage")    : 0;
+            widthTimes = options.hasKey("widthtimes")  ? options.getInt("widthtimes")  : 0;
+            heigthTimes= options.hasKey("heigthtimes") ? options.getInt("heigthtimes") : 0;
+            fonttype   = options.hasKey("fonttype")    ? options.getInt("fonttype")    : 0;
         }
-        Log.d(TAG,"encoding: "+encoding);
 
-        List<List<String>> table = new ArrayList<List<String>>();
-
-        /**splits the column text to few rows and applies the alignment **/
+        List<List<String>> table = new ArrayList<>();
         int padding = 1;
-        for(int i=0;i<columnWidths.size();i++){
-            int width =columnWidths.getInt(i)-padding;//1 char padding
-            String text = String.copyValueOf(columnTexts.getString(i).toCharArray());
-            List<ColumnSplitedString> splited = new ArrayList<ColumnSplitedString>();
-            int shorter = 0;
-            int counter = 0;
-            String temp = "";
-            for(int c=0;c<text.length();c++){
-                char ch = text.charAt(c);
-                int l = isChinese(ch)?2:1;
-                if (l==2){
-                    shorter++;
-                }
-                temp=temp+ch;
-
-                if(counter+l<width){
-                   counter = counter+l;
-                }else{
-                    splited.add(new ColumnSplitedString(shorter,temp));
-                    temp = "";
-                    counter=0;
-                    shorter=0;
-                }
+        for (int i = 0; i < columnWidths.size(); i++) {
+            int width = columnWidths.getInt(i) - padding;
+            String text = columnTexts.getString(i);
+            List<ColumnSplitedString> splited = new ArrayList<>();
+            int shorter = 0, counter = 0; String temp = "";
+            for (int c = 0; c < text.length(); c++) {
+                char ch = text.charAt(c); int l = isChinese(ch) ? 2 : 1;
+                if (l == 2) shorter++; temp += ch;
+                if (counter + l < width) { counter += l; }
+                else { splited.add(new ColumnSplitedString(shorter, temp)); temp = ""; counter = 0; shorter = 0; }
             }
-            if(temp.length()>0) {
-                splited.add(new ColumnSplitedString(shorter,temp));
-            }
+            if (temp.length() > 0) splited.add(new ColumnSplitedString(shorter, temp));
             int align = columnAligns.getInt(i);
-
-            List<String> formated = new ArrayList<String>();
-            for(ColumnSplitedString s: splited){
+            List<String> formated = new ArrayList<>();
+            for (ColumnSplitedString s : splited) {
                 StringBuilder empty = new StringBuilder();
-                for(int w=0;w<(width+padding-s.getShorter());w++){
-                    empty.append(" ");
+                for (int w = 0; w < (width + padding - s.getShorter()); w++) empty.append(" ");
+                int startIdx = 0; String ss = s.getStr();
+                if (align == 1 && ss.length() < (width - s.getShorter())) {
+                    startIdx = (width - s.getShorter() - ss.length()) / 2;
+                    if (startIdx + ss.length() > width - s.getShorter()) startIdx--;
+                    if (startIdx < 0) startIdx = 0;
+                } else if (align == 2 && ss.length() < (width - s.getShorter())) {
+                    startIdx = width - s.getShorter() - ss.length();
                 }
-                int startIdx = 0;
-                String ss = s.getStr();
-                if(align == 1 && ss.length()<(width-s.getShorter())){
-                    startIdx = (width-s.getShorter()-ss.length())/2;
-                    if(startIdx+ss.length()>width-s.getShorter()){
-                        startIdx--;
-                    }
-                    if(startIdx<0){
-                        startIdx=0;
-                    }
-                }else if(align==2 && ss.length()<(width-s.getShorter())){
-                    startIdx =width - s.getShorter()-ss.length();
-                }
-                Log.d(TAG,"empty.replace("+startIdx+","+(startIdx+ss.length())+","+ss+")");
-                empty.replace(startIdx,startIdx+ss.length(),ss);
+                empty.replace(startIdx, startIdx + ss.length(), ss);
                 formated.add(empty.toString());
             }
             table.add(formated);
-
         }
 
-        /**  try to find the max row count of the table **/
         int maxRowCount = 0;
-        for(int i=0;i<table.size()/*column count*/;i++){
-            List<String> rows = table.get(i); // row data in current column
-            if(rows.size()>maxRowCount){maxRowCount = rows.size();}// try to find the max row count;
-        }
+        for (List<String> rows : table) if (rows.size() > maxRowCount) maxRowCount = rows.size();
 
-        /** loop table again to fill the rows **/
         StringBuilder[] rowsToPrint = new StringBuilder[maxRowCount];
-        for(int column=0;column<table.size()/*column count*/;column++){
-            List<String> rows = table.get(column); // row data in current column
-            for(int row=0;row<maxRowCount;row++){
-                if(rowsToPrint[row]==null){
-                    rowsToPrint[row] = new StringBuilder();
-                }
-                if(row<rows.size()){
-                    //got the row of this column
-                    rowsToPrint[row].append(rows.get(row));
-                }else{
-                    int w =columnWidths.getInt(column);
+        for (int column = 0; column < table.size(); column++) {
+            List<String> rows = table.get(column);
+            for (int row = 0; row < maxRowCount; row++) {
+                if (rowsToPrint[row] == null) rowsToPrint[row] = new StringBuilder();
+                if (row < rows.size()) { rowsToPrint[row].append(rows.get(row)); }
+                else {
                     StringBuilder empty = new StringBuilder();
-                   for(int i=0;i<w;i++){
-                       empty.append(" ");
-                   }
-                    rowsToPrint[row].append(empty.toString());//Append spaces to ensure the format
+                    for (int i = 0; i < columnWidths.getInt(column); i++) empty.append(" ");
+                    rowsToPrint[row].append(empty);
                 }
             }
         }
 
-        /** loops the rows and print **/
-        for(int i=0;i<rowsToPrint.length;i++){
-            rowsToPrint[i].append("\n\r");//wrap line..
+        for (int i = 0; i < rowsToPrint.length; i++) {
+            rowsToPrint[i].append("\n\r");
             try {
                 String line = rowsToPrint[i].toString();
-                if (containsArabicCharacters(line)) {
-                    Log.d(TAG, "Printing Arabic column text: " + line);
-                    
-                    // Try bitmap rendering first
-                    Bitmap bmp = null;
-                    try {
-                        // Explicitly set bold state for column text
-                        sendDataByte(PrinterCommand.POS_Set_Bold(fonttype > 0 ? 1 : 0));
-                        
-                        // NUCLEAR OPTION: Global Style Reset (ESC ! 0) if regular font requested
-                        if (fonttype == 0) {
-                            sendDataByte(Command.ESC_ExclamationMark);
-                        }
+                sendDataByte(PrinterCommand.POS_Set_Bold(fonttype > 0 ? 1 : 0));
+                if (fonttype == 0) sendDataByte(Command.ESC_ExclamationMark);
 
-                        // center=false — applies CONTENT_SIDE_MARGIN indentation
-                        bmp = renderTextToBitmap(line, deviceWidth, false, fonttype > 0);
-                    } catch (Exception e) {
-                        Log.e(TAG, "Column bitmap rendering failed: " + e.getMessage());
-                    }
-                    
-                    if (bmp != null) {
-                        try {
-                        byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
-                            if (data != null && sendDataByte(data)) {
-                                // Success, continue to next row
-                                continue;
-                            } else {
-                                Log.w(TAG, "Column bitmap printing failed, trying fallback");
-                            }
-                        } catch (Exception e) {
-                            Log.e(TAG, "Column bitmap printing error: " + e.getMessage());
-                        } finally {
-                            // Clean up bitmap to prevent memory leaks
-                            if (bmp != null && !bmp.isRecycled()) {
-                                bmp.recycle();
-                            }
-                        }
-                    }
-                    
-                    // Fallback: Try UTF-8 encoding
+                Bitmap bmp = null;
+                try { bmp = renderTextToBitmap(line, deviceWidth, false, fonttype > 0); }
+                catch (Exception e) { Log.e(TAG, "Column bitmap failed: " + e.getMessage()); }
+
+                if (bmp != null) {
                     try {
-                        if (sendDataByte(PrinterCommand.POS_Print_Text(line, "UTF-8", 0, widthTimes, heigthTimes, fonttype))) {
-                            continue; // Success, continue to next row
-                        }
+                        byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
+                        if (data != null && sendDataByte(data)) continue;
                     } catch (Exception e) {
-                        Log.e(TAG, "Column UTF-8 fallback failed: " + e.getMessage());
+                        Log.e(TAG, "Column bitmap print error: " + e.getMessage());
+                    } finally {
+                        if (!bmp.isRecycled()) bmp.recycle();
                     }
-                    
-                    // Last resort: Print as ASCII with question marks
+                }
+                if (containsArabicCharacters(line)) {
+                    try {
+                        if (sendDataByte(PrinterCommand.POS_Print_Text(line, "UTF-8", 0, widthTimes, heigthTimes, fonttype))) continue;
+                    } catch (Exception e) { Log.e(TAG, "Column UTF-8 fallback failed: " + e.getMessage()); }
                     String asciiLine = line.replaceAll("[^\\x00-\\x7F]", "?");
                     if (!sendDataByte(PrinterCommand.POS_Print_Text(asciiLine, encoding, codepage, widthTimes, heigthTimes, fonttype))) {
-                        Log.e(TAG, "Column ASCII fallback also failed");
-                        promise.reject("COMMAND_NOT_SEND", "Failed to print column row: " + i);
-                        return;
+                        promise.reject("COMMAND_NOT_SEND", "Failed row: " + i); return;
                     }
                 } else {
                     if (!sendDataByte(PrinterCommand.POS_Print_Text(line, encoding, codepage, widthTimes, heigthTimes, fonttype))) {
-                        promise.reject("COMMAND_NOT_SEND", "Failed to print column row: " + i);
-                        return;
+                        promise.reject("COMMAND_NOT_SEND", "Failed row: " + i); return;
                     }
                 }
-            }catch (Exception e){
-                Log.e(TAG, "Error printing column row " + i + ": " + e.getMessage());
-                e.printStackTrace();
-            }
+            } catch (Exception e) { Log.e(TAG, "Column row " + i + " error: " + e.getMessage()); }
         }
         promise.resolve(null);
     }
 
     @ReactMethod
-    public void setWidth(int width) {
-        deviceWidth = width;
-    }
+    public void setWidth(int width) { deviceWidth = width; }
 
-    /**
-     * Check if the device is running Android 4.2.2 or older
-     */
     private boolean isOldAndroidVersion() {
-        return Build.VERSION.SDK_INT <= Build.VERSION_CODES.JELLY_BEAN_MR1; // API 17 = Android 4.2.2
+        return Build.VERSION.SDK_INT <= Build.VERSION_CODES.JELLY_BEAN_MR1;
     }
 
-    /**
-     * Get device-specific bitmap configuration for better compatibility
-     */
     private Bitmap.Config getOptimalBitmapConfig() {
-        if (isOldAndroidVersion()) {
-            return Bitmap.Config.RGB_565; // More memory efficient for older devices
-        } else {
-            return Bitmap.Config.ARGB_8888; // Better quality for newer devices
-        }
+        return isOldAndroidVersion() ? Bitmap.Config.RGB_565 : Bitmap.Config.ARGB_8888;
     }
 
-    /**
-     * Get device-specific text size for better compatibility
-     */
+    /** Single source of truth for font size across ALL languages. */
     private int getOptimalTextSize() {
-        if (isOldAndroidVersion()) {
-            return 20; // Increased for better readability on legacy
-        } else {
-            return 24; // Restored to 24 as requested
-        }
+        return isOldAndroidVersion() ? 16 : 18;
     }
 
-    /**
-     * Create a properly centered Arabic text bitmap
-     */
     private Bitmap createCenteredArabicBitmap(String text, int targetWidth, TextPaint paint) {
         try {
             int bmpWidth = Math.min(targetWidth, 384);
-            int bmpHeight = isOldAndroidVersion() ? 34 : 40;
-            
+            int bmpHeight = isOldAndroidVersion() ? 28 : 34;
             Bitmap bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, getOptimalBitmapConfig());
             Canvas canvas = new Canvas(bitmap);
             canvas.drawColor(Color.WHITE);
-            
-            // For Arabic text, we need to handle the text direction properly
-            // Measure the text width and center it
-            float textWidth = paint.measureText(text);
-            float x = (bmpWidth - textWidth) / 2;
-            float y = isOldAndroidVersion() ? 26 : 30;
-            
-            // Draw the text centered
-            canvas.drawText(text, Math.max(0, x), y, paint);
-            
+            float x = Math.max(0, (bmpWidth - paint.measureText(text)) / 2);
+            canvas.drawText(text, x, isOldAndroidVersion() ? 22 : 24, paint);
             return bitmap;
         } catch (Exception e) {
-            Log.e(TAG, "Error in createCenteredArabicBitmap: " + e.getMessage());
+            Log.e(TAG, "createCenteredArabicBitmap error: " + e.getMessage());
             return null;
         }
     }
 
     @ReactMethod
-    public void printPic(String base64encodeStr, @Nullable  ReadableMap options) {
-        int width = 0;
-        int leftPadding = 0;
-        if(options!=null){
+    public void printPic(String base64encodeStr, @Nullable ReadableMap options) {
+        int width = 0, leftPadding = 0;
+        if (options != null) {
             width = options.hasKey("width") ? options.getInt("width") : 0;
-            leftPadding = options.hasKey("left")?options.getInt("left") : 0;
+            leftPadding = options.hasKey("left") ? options.getInt("left") : 0;
         }
-
-        //cannot larger then devicesWith;
-        if(width > deviceWidth || width == 0){
-            width = deviceWidth;
-        }
-
+        if (width > deviceWidth || width == 0) width = deviceWidth;
         byte[] bytes = Base64.decode(base64encodeStr, Base64.DEFAULT);
         Bitmap mBitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-        int nMode = 0;
-        if (mBitmap != null) {
-            byte[] data = PrintPicture.POS_PrintBMP(mBitmap, width, nMode, leftPadding);
-            sendDataByte(data);
-        }
+        if (mBitmap != null) sendDataByte(PrintPicture.POS_PrintBMP(mBitmap, width, 0, leftPadding));
     }
 
     @ReactMethod
     public void printPicFromURL(final String picUrl, @Nullable final ReadableMap options, final Promise promise) {
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                HttpURLConnection connection = null;
-                InputStream input = null;
-                try {
-                    URL url = new URL(picUrl);
-                    connection = (HttpURLConnection) url.openConnection();
-                    connection.setDoInput(true);
-                    connection.setConnectTimeout(10000);
-                    connection.setReadTimeout(10000);
-                    connection.connect();
-                    
-                    int responseCode = connection.getResponseCode();
-                    if (responseCode != HttpURLConnection.HTTP_OK) {
-                        promise.reject("URL_ERROR", "Failed to download image, response code: " + responseCode);
-                        return;
-                    }
-                    
-                    input = connection.getInputStream();
-                    Bitmap mBitmap = BitmapFactory.decodeStream(input);
-                    
-                    if (mBitmap == null) {
-                        promise.reject("DECODE_ERROR", "Failed to decode image from URL");
-                        return;
-                    }
-
-                    int width = 0;
-                    int leftPadding = 0;
-                    if(options != null){
-                        width = options.hasKey("width") ? options.getInt("width") : 0;
-                        leftPadding = options.hasKey("left") ? options.getInt("left") : 0;
-                    }
-
-                    // cannot larger then deviceWidth;
-                    if(width > deviceWidth || width == 0){
-                        width = deviceWidth;
-                    }
-
-                    int nMode = 0;
-                    byte[] data = PrintPicture.POS_PrintBMP(mBitmap, width, nMode, leftPadding);
-                    
-                    if (sendDataByte(data)) {
-                        promise.resolve(null);
-                    } else {
-                        promise.reject("COMMAND_NOT_SEND", "Failed to send image data to printer");
-                    }
-                    
-                    // Clean up bitmap
-                    if (!mBitmap.isRecycled()) {
-                        mBitmap.recycle();
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "printPicFromURL error: " + e.getMessage());
-                    promise.reject("PRINT_ERROR", e.getMessage(), e);
-                } finally {
-                    try {
-                        if (input != null) input.close();
-                        if (connection != null) connection.disconnect();
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error closing connection: " + e.getMessage());
-                    }
+        new Thread(() -> {
+            HttpURLConnection connection = null; InputStream input = null;
+            try {
+                URL url = new URL(picUrl);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setDoInput(true); connection.setConnectTimeout(10000); connection.setReadTimeout(10000);
+                connection.connect();
+                if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) {
+                    promise.reject("URL_ERROR", "Response: " + connection.getResponseCode()); return;
                 }
+                input = connection.getInputStream();
+                Bitmap mBitmap = BitmapFactory.decodeStream(input);
+                if (mBitmap == null) { promise.reject("DECODE_ERROR", "Failed to decode image"); return; }
+                int width = 0, leftPadding = 0;
+                if (options != null) {
+                    width = options.hasKey("width") ? options.getInt("width") : 0;
+                    leftPadding = options.hasKey("left") ? options.getInt("left") : 0;
+                }
+                if (width > deviceWidth || width == 0) width = deviceWidth;
+                byte[] data = PrintPicture.POS_PrintBMP(mBitmap, width, 0, leftPadding);
+                if (sendDataByte(data)) promise.resolve(null);
+                else promise.reject("COMMAND_NOT_SEND", "Failed to send image");
+                if (!mBitmap.isRecycled()) mBitmap.recycle();
+            } catch (Exception e) {
+                Log.e(TAG, "printPicFromURL error: " + e.getMessage());
+                promise.reject("PRINT_ERROR", e.getMessage(), e);
+            } finally {
+                try { if (input != null) input.close(); if (connection != null) connection.disconnect(); }
+                catch (Exception e) { Log.e(TAG, "Connection close error: " + e.getMessage()); }
             }
         }).start();
     }
 
-
     @ReactMethod
     public void selfTest(@Nullable Callback cb) {
         boolean result = sendDataByte(PrinterCommand.POS_Set_PrtSelfTest());
-        if (cb != null) {
-            cb.invoke(result);
-        }
-    }
-
-    /**
-     * Rotate 90 degree, 0-no rotate, 1-rotate
-     * @param rotate  0-no rotate, 1-rotate
-     */
-    @ReactMethod
-    public void rotate(int rotate,final Promise promise) {
-        if(sendDataByte(PrinterCommand.POS_Set_Rotate(rotate))){
-            promise.resolve(null);
-        }else{
-            promise.reject("COMMAND_NOT_SEND");
-        }
+        if (cb != null) cb.invoke(result);
     }
 
     @ReactMethod
-    public void setBlob(int weight,final Promise promise) {
-        if(sendDataByte(PrinterCommand.POS_Set_Bold(weight))){
-            promise.resolve(null);
-        }else{
-            promise.reject("COMMAND_NOT_SEND");
-        }
+    public void rotate(int rotate, final Promise promise) {
+        if (sendDataByte(PrinterCommand.POS_Set_Rotate(rotate))) promise.resolve(null);
+        else promise.reject("COMMAND_NOT_SEND");
+    }
+
+    @ReactMethod
+    public void setBlob(int weight, final Promise promise) {
+        if (sendDataByte(PrinterCommand.POS_Set_Bold(weight))) promise.resolve(null);
+        else promise.reject("COMMAND_NOT_SEND");
     }
 
     @ReactMethod
     public void printQRCode(String content, int size, int correctionLevel, final Promise promise) {
         try {
-            Log.i(TAG, "生成的文本：" + content);
-            Hashtable<EncodeHintType, Object> hints = new Hashtable<EncodeHintType, Object>();
+            Hashtable<EncodeHintType, Object> hints = new Hashtable<>();
             hints.put(EncodeHintType.CHARACTER_SET, "utf-8");
             hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.forBits(correctionLevel));
-            BitMatrix bitMatrix = new QRCodeWriter().encode(content,
-                    BarcodeFormat.QR_CODE, size, size, hints);
-
-            int width = bitMatrix.getWidth();
-            int height = bitMatrix.getHeight();
-
-            System.out.println("w:" + width + "h:"
-                    + height);
-
+            BitMatrix bitMatrix = new QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size, hints);
+            int width = bitMatrix.getWidth(), height = bitMatrix.getHeight();
             int[] pixels = new int[width * height];
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    if (bitMatrix.get(x, y)) {
-                        pixels[y * width + x] = 0xff000000;
-                    } else {
-                        pixels[y * width + x] = 0xffffffff;
-                    }
-                }
-            }
-
-            Bitmap bitmap = Bitmap.createBitmap(width, height,
-                    Bitmap.Config.ARGB_8888);
-
+            for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                    pixels[y * width + x] = bitMatrix.get(x, y) ? 0xff000000 : 0xffffffff;
+            Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             bitmap.setPixels(pixels, 0, width, 0, 0, width, height);
-
             byte[] data = PrintPicture.POS_PrintBMP(bitmap, size, 0, 0);
-            if (sendDataByte(data)) {
-                promise.resolve(null);
-            } else {
-                promise.reject("COMMAND_NOT_SEND");
-            }
-        } catch (Exception e) {
-            promise.reject(e.getMessage(), e);
-        }
+            if (sendDataByte(data)) promise.resolve(null);
+            else promise.reject("COMMAND_NOT_SEND");
+        } catch (Exception e) { promise.reject(e.getMessage(), e); }
     }
 
     @ReactMethod
-    public void printBarCode(String str, int nType, int nWidthX, int nHeight,
-                             int nHriFontType, int nHriFontPosition) {
-        byte[] command = PrinterCommand.getBarCodeCommand(str, nType, nWidthX, nHeight, nHriFontType, nHriFontPosition);
-        sendDataByte(command);
+    public void printBarCode(String str, int nType, int nWidthX, int nHeight, int nHriFontType, int nHriFontPosition) {
+        sendDataByte(PrinterCommand.getBarCodeCommand(str, nType, nWidthX, nHeight, nHriFontType, nHriFontPosition));
     }
 
     @ReactMethod
     public void openDrawer(int nMode, int nTime1, int nTime2) {
-        try{
-            byte[] command = PrinterCommand.POS_Set_Cashbox(nMode, nTime1, nTime2);
-            sendDataByte(command);
-
-         }catch (Exception e){
-            Log.d(TAG, e.getMessage());
-        }
+        try { sendDataByte(PrinterCommand.POS_Set_Cashbox(nMode, nTime1, nTime2)); }
+        catch (Exception e) { Log.d(TAG, e.getMessage()); }
     }
-
 
     @ReactMethod
     public void cutOnePoint() {
-        try{
-            byte[] command = PrinterCommand.POS_Set_Cut(1);
-            sendDataByte(command);
-
-         }catch (Exception e){
-            Log.d(TAG, e.getMessage());
-        }
-    }    
-
-    private boolean sendDataByte(byte[] data) {
-        if (data==null || mService.getState() != BluetoothService.STATE_CONNECTED) {
-            return false;
-        }
-        mService.write(data);
-        return true;
+        try { sendDataByte(PrinterCommand.POS_Set_Cut(1)); }
+        catch (Exception e) { Log.d(TAG, e.getMessage()); }
     }
 
-    // 根据Unicode编码完美的判断中文汉字和符号
+    private boolean sendDataByte(byte[] data) {
+        if (data == null || mService.getState() != BluetoothService.STATE_CONNECTED) return false;
+        mService.write(data); return true;
+    }
+
     private static boolean isChinese(char c) {
         Character.UnicodeBlock ub = Character.UnicodeBlock.of(c);
-        if (ub == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+        return ub == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
                 || ub == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
                 || ub == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
                 || ub == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B
                 || ub == Character.UnicodeBlock.CJK_SYMBOLS_AND_PUNCTUATION
                 || ub == Character.UnicodeBlock.HALFWIDTH_AND_FULLWIDTH_FORMS
-                || ub == Character.UnicodeBlock.GENERAL_PUNCTUATION) {
-            return true;
-        }
-        return false;
+                || ub == Character.UnicodeBlock.GENERAL_PUNCTUATION;
     }
 
-    /**
-     * Detect if a string contains Arabic characters.
-     */
     private static boolean containsArabicCharacters(String value) {
-        if (value == null || value.length() == 0) return false;
+        if (value == null || value.isEmpty()) return false;
         for (int i = 0; i < value.length(); i++) {
             Character.UnicodeBlock block = Character.UnicodeBlock.of(value.charAt(i));
             if (block == Character.UnicodeBlock.ARABIC
                     || block == Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_A
                     || block == Character.UnicodeBlock.ARABIC_PRESENTATION_FORMS_B
-                    || block == Character.UnicodeBlock.ARABIC_SUPPLEMENT) {
-                return true;
-            }
+                    || block == Character.UnicodeBlock.ARABIC_SUPPLEMENT) return true;
         }
         return false;
     }
 
-    /**
-     * Render text (including Arabic shaping/RTL) into a bitmap sized to printer width.
-     * Enhanced for Android 4.2.2 compatibility with better memory management and error handling.
-     *
-     * When center=false (content/left-aligned rows), CONTENT_SIDE_MARGIN pixels are inset
-     * on each side so key-value rows don't print edge-to-edge.
-     * When center=true (header/footer rows), the full width is used unchanged.
-     */
     private Bitmap renderTextToBitmap(String text, int targetWidth, boolean bold) {
         return renderTextToBitmap(text, targetWidth, false, bold);
     }
 
+    /**
+     * Render any text into a printer-width bitmap.
+     *
+     * CENTERING FIX:
+     *   StaticLayout with ALIGN_CENTER already centres every line within its layout
+     *   width (== bmpWidth for centered rows). Previously we also translated the
+     *   canvas by (bmpWidth - textWidth) / 2, which double-shifted English text to
+     *   the right of centre. That extra translation has been removed.
+     *
+     *   Rule: canvas is only ever translated for non-centered content rows
+     *   (by CONTENT_SIDE_MARGIN to inset key-value lines from the paper edge).
+     */
     private Bitmap renderTextToBitmap(String text, int targetWidth, boolean center, boolean bold) {
-        if (text == null || text.trim().isEmpty()) {
-            return null;
-        }
-
+        if (text == null || text.trim().isEmpty()) return null;
         try {
-            // Use device-specific bitmap configuration
-            Bitmap.Config config = getOptimalBitmapConfig();
-
-            // ── MARGIN LOGIC ──────────────────────────────────────────────────────────
-            // For non-centered (content) rows we shrink the text layout width by
-            // CONTENT_SIDE_MARGIN on each side, then translate the canvas so the text
-            // is drawn inset from the paper edge. Centered rows use the full width.
             final int sideMargin = center ? 0 : CONTENT_SIDE_MARGIN;
             final int contentWidth = targetWidth - sideMargin * 2;
-            // ─────────────────────────────────────────────────────────────────────────
-            
+
             TextPaint paint = new TextPaint();
-            paint.setAntiAlias(false); // FORCE OFF to prevent blurry/thick edges
+            paint.setAntiAlias(false);
             paint.setColor(Color.BLACK);
             paint.setTextSize(getOptimalTextSize());
-            
-            // DYNAMIC FONT WEIGHT:
-            // Explicitly set weight based on the 'bold' parameter
             paint.setTypeface(Typeface.create(Typeface.SANS_SERIF, bold ? Typeface.BOLD : Typeface.NORMAL));
             paint.setFakeBoldText(bold);
             paint.setStrokeWidth(0);
             paint.setLinearText(true);
             paint.setSubpixelText(false);
 
-            CharSequence sequence = text;
-
             StaticLayout layout = null;
             try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-                    layout = new StaticLayout(sequence, paint, contentWidth,
+                layout = new StaticLayout(text, paint, contentWidth,
                         center ? Layout.Alignment.ALIGN_CENTER : Layout.Alignment.ALIGN_NORMAL,
                         1.0f, 0f, false);
-                } else {
-                    layout = new StaticLayout(sequence, paint, contentWidth,
-                        center ? Layout.Alignment.ALIGN_CENTER : Layout.Alignment.ALIGN_NORMAL,
-                        1.0f, 0f, false);
-                }
             } catch (Exception e) {
-                Log.e(TAG, "StaticLayout creation failed: " + e.getMessage());
-                if (containsArabicCharacters(text) && center) {
-                    return createCenteredArabicBitmap(text, targetWidth, paint);
-                }
-                return createSimpleTextBitmap(text, targetWidth, paint, center);
+                Log.e(TAG, "StaticLayout failed: " + e.getMessage());
+                if (center) return createCenteredArabicBitmap(text, targetWidth, paint);
+                return createSimpleTextBitmap(text, targetWidth, paint, false);
             }
 
             if (layout == null) {
-                if (containsArabicCharacters(text) && center) {
-                    return createCenteredArabicBitmap(text, targetWidth, paint);
-                }
-                return createSimpleTextBitmap(text, targetWidth, paint, center);
+                if (center) return createCenteredArabicBitmap(text, targetWidth, paint);
+                return createSimpleTextBitmap(text, targetWidth, paint, false);
             }
 
-            // Bitmap always spans the full paper width so the printer fills the line
             int bmpWidth = Math.min(targetWidth, 384);
             int bmpHeight = Math.max(layout.getHeight(), 20);
-            
-            // Check available memory before creating bitmap
-            Runtime runtime = Runtime.getRuntime();
-            long availableMemory = runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory());
-            long requiredMemory = (long) bmpWidth * bmpHeight * 2; // RGB_565 = 2 bytes per pixel
-            
-            if (requiredMemory > availableMemory * 0.5) {
-                Log.w(TAG, "Insufficient memory for bitmap creation, using fallback");
-                if (containsArabicCharacters(text) && center) {
-                    return createCenteredArabicBitmap(text, targetWidth, paint);
-                }
-                return createSimpleTextBitmap(text, targetWidth, paint, center);
+
+            Runtime rt = Runtime.getRuntime();
+            long available = rt.maxMemory() - (rt.totalMemory() - rt.freeMemory());
+            if ((long) bmpWidth * bmpHeight * 2 > available * 0.5) {
+                if (center) return createCenteredArabicBitmap(text, targetWidth, paint);
+                return createSimpleTextBitmap(text, targetWidth, paint, false);
             }
 
             Bitmap bitmap = null;
             try {
-                bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, config);
-                if (bitmap == null) {
-                    return createSimpleTextBitmap(text, targetWidth, paint, center);
-                }
-                
+                bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, getOptimalBitmapConfig());
+                if (bitmap == null) return createSimpleTextBitmap(text, targetWidth, paint, center);
+
                 Canvas canvas = new Canvas(bitmap);
                 canvas.drawColor(Color.WHITE);
-                
                 canvas.save();
-                if (center) {
-                    // Centered rows: translate so text is visually centred
-                    float textWidth;
-                    if (containsArabicCharacters(text)) {
-                        textWidth = layout.getWidth();
-                    } else {
-                        textWidth = paint.measureText(sequence.toString());
-                    }
-                    float x = (bmpWidth - textWidth) / 2;
-                    canvas.translate(Math.max(0, x), 0);
-                } else {
-                    // Content rows: translate inward by sideMargin to create symmetric padding
+
+                if (!center) {
+                    // Non-centred rows: indent from paper edge only
                     canvas.translate(sideMargin, 0);
                 }
+                // Centred rows: NO translation — StaticLayout ALIGN_CENTER handles it.
+                // Adding a translation here was causing English header text to appear
+                // shifted right of centre (double-centering bug).
+
                 layout.draw(canvas);
                 canvas.restore();
-                
                 return bitmap;
             } catch (OutOfMemoryError e) {
-                Log.e(TAG, "OutOfMemoryError creating bitmap: " + e.getMessage());
-                if (bitmap != null && !bitmap.isRecycled()) {
-                    bitmap.recycle();
-                }
-                if (containsArabicCharacters(text) && center) {
-                    return createCenteredArabicBitmap(text, targetWidth, paint);
-                }
-                return createSimpleTextBitmap(text, targetWidth, paint, center);
+                Log.e(TAG, "OOM: " + e.getMessage());
+                if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+                if (center) return createCenteredArabicBitmap(text, targetWidth, paint);
+                return createSimpleTextBitmap(text, targetWidth, paint, false);
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error in renderTextToBitmap: " + e.getMessage());
+            Log.e(TAG, "renderTextToBitmap error: " + e.getMessage());
             return null;
         }
     }
 
-    /**
-     * Fallback method to create a simple text bitmap when StaticLayout fails.
-     * Applies CONTENT_SIDE_MARGIN for non-centered rows to match the main path.
-     */
     private Bitmap createSimpleTextBitmap(String text, int targetWidth, TextPaint paint, boolean center) {
         try {
             int bmpWidth = Math.min(targetWidth, 384);
-            int bmpHeight = isOldAndroidVersion() ? 34 : 40;
-            
+            int bmpHeight = isOldAndroidVersion() ? 28 : 34;
             Bitmap bitmap = Bitmap.createBitmap(bmpWidth, bmpHeight, getOptimalBitmapConfig());
             Canvas canvas = new Canvas(bitmap);
             canvas.drawColor(Color.WHITE);
-            
-            float x;
-            if (center) {
-                // Center: compute offset from full width
-                float textWidth = paint.measureText(text);
-                x = (bmpWidth - textWidth) / 2;
-            } else {
-                // Content rows: inset by CONTENT_SIDE_MARGIN from the left edge
-                x = CONTENT_SIDE_MARGIN;
-            }
-            
-            float y = isOldAndroidVersion() ? 26 : 30;
-            canvas.drawText(text, Math.max(0, x), y, paint);
-
+            float x = center ? Math.max(0, (bmpWidth - paint.measureText(text)) / 2) : CONTENT_SIDE_MARGIN;
+            canvas.drawText(text, x, isOldAndroidVersion() ? 22 : 24, paint);
             return bitmap;
         } catch (Exception e) {
-            Log.e(TAG, "Error in createSimpleTextBitmap: " + e.getMessage());
+            Log.e(TAG, "createSimpleTextBitmap error: " + e.getMessage());
             return null;
         }
     }
 
     /**
-     * Print centered text (bitmap for Arabic; ESC/POS alignment for others)
-     * Enhanced for Android 4.2.2 compatibility
+     * printTextCentered — unified bitmap path for all text.
      */
     @ReactMethod
     public void printTextCentered(String text, @Nullable ReadableMap options, final Promise promise) {
         try {
-            if (text == null || text.trim().isEmpty()) {
-                promise.resolve(null);
-                return;
-            }
+            if (text == null || text.trim().isEmpty()) { promise.resolve(null); return; }
 
             String encoding = "GBK";
-            int codepage = 0;
-            int widthTimes = 0;
-            int heigthTimes=0;
-            int fonttype=0;
-            if(options!=null) {
-                encoding = options.hasKey("encoding") ? options.getString("encoding") : "GBK";
-                codepage = options.hasKey("codepage") ? options.getInt("codepage") : 0;
-                widthTimes = options.hasKey("widthtimes") ? options.getInt("widthtimes") : 0;
-                heigthTimes = options.hasKey("heigthtimes") ? options.getInt("heigthtimes") : 0;
-                fonttype = options.hasKey("fonttype") ? options.getInt("fonttype") : 0;
+            int codepage = 0, widthTimes = 0, heigthTimes = 0, fonttype = 0;
+            if (options != null) {
+                encoding   = options.hasKey("encoding")    ? options.getString("encoding") : "GBK";
+                codepage   = options.hasKey("codepage")    ? options.getInt("codepage")    : 0;
+                widthTimes = options.hasKey("widthtimes")  ? options.getInt("widthtimes")  : 0;
+                heigthTimes= options.hasKey("heigthtimes") ? options.getInt("heigthtimes") : 0;
+                fonttype   = options.hasKey("fonttype")    ? options.getInt("fonttype")    : 0;
             }
 
-            // Explicitly set bold state based on fonttype to prevent "sticky" bold state
             sendDataByte(PrinterCommand.POS_Set_Bold(fonttype > 0 ? 1 : 0));
+            if (fonttype == 0) sendDataByte(Command.ESC_ExclamationMark);
+            if (text.startsWith("##BITMAP##")) text = text.replace("##BITMAP##", "");
 
-            // NUCLEAR OPTION: Global Style Reset (ESC ! 0) if regular font requested
-            if (fonttype == 0) {
-                sendDataByte(Command.ESC_ExclamationMark);
-            }
+            // ── UNIFIED BITMAP PATH ──────────────────────────────────────────────────
+            Bitmap bmp = null;
+            try { bmp = renderTextToBitmap(text, deviceWidth, true, fonttype > 0); }
+            catch (Exception e) { Log.e(TAG, "Centered bitmap failed: " + e.getMessage()); }
 
-            // SURGICAL FIX: Check if we explicitly requested high-fidelity bitmap font
-            boolean forceBitmap = false;
-            if (text.startsWith("##BITMAP##")) {
-                forceBitmap = true;
-                text = text.replace("##BITMAP##", "");
-                Log.d(TAG, "Surgical bitmap font requested for: " + text);
-            }
-
-            if (containsArabicCharacters(text) || forceBitmap) {
-                Log.d(TAG, "Printing centered text (bitmap engine): " + text);
-                
-                // Try bitmap rendering first — center=true, no side margins
-                Bitmap bmp = null;
+            if (bmp != null) {
                 try {
-                    bmp = renderTextToBitmap(text, deviceWidth, true, fonttype > 0);
-                } catch (Exception e) {
-                    Log.e(TAG, "Centered bitmap rendering failed: " + e.getMessage());
-                }
-                
-                if (bmp != null) {
-                    try {
                     byte[] data = PrintPicture.POS_PrintBMP(bmp, deviceWidth, 0, 0);
-                        if (data != null && sendDataByte(data)) {
-                            promise.resolve(null);
-                            return;
-                        } else if (forceBitmap) {
-                             Log.w(TAG, "Forced bitmap font failed, falling back to standard");
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Centered bitmap printing error: " + e.getMessage());
-                    } finally {
-                        if (bmp != null && !bmp.isRecycled()) {
-                            bmp.recycle();
-                        }
-                    }
-                }
-                
-                // Fallback for Arabic (Standard ESC/POS commands)
-                if (containsArabicCharacters(text)) {
-                    Log.d(TAG, "Using fallback centered text printing for Arabic");
-                    try {
-                        if (sendDataByte(PrinterCommand.POS_S_Align(1))) {
-                            byte[] bytes = PrinterCommand.POS_Print_Text(text, "UTF-8", 0, widthTimes, heigthTimes, fonttype);
-                            if (sendDataByte(bytes)) {
-                                sendDataByte(PrinterCommand.POS_S_Align(0)); // Reset alignment
-                                promise.resolve(null);
-                                return;
-                            }
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Centered UTF-8 fallback failed: " + e.getMessage());
-                    }
+                    if (data != null && sendDataByte(data)) { promise.resolve(null); return; }
+                } catch (Exception e) {
+                    Log.e(TAG, "Centered bitmap print error: " + e.getMessage());
+                } finally {
+                    if (!bmp.isRecycled()) bmp.recycle();
                 }
             }
 
-            // Standard ESC/POS path for non-Arabic (or if bitmap failed/not requested)
-            if (!containsArabicCharacters(text)) {
-                try {
-                    if (!sendDataByte(PrinterCommand.POS_S_Align(1))) { 
-                        promise.reject("COMMAND_NOT_SEND", "Failed to set center alignment"); 
-                        return; 
-                    }
-                    byte[] bytes = PrinterCommand.POS_Print_Text(text, encoding, codepage, widthTimes, heigthTimes, fonttype/10); // Use standard font for standard text
-                    if (fonttype == 0) {
-                        // Reset everything
-                        sendDataByte(Command.ESC_ExclamationMark);
-                    }
-                    bytes = PrinterCommand.POS_Print_Text(text, encoding, codepage, widthTimes, heigthTimes, fonttype);
-
-                    if (!sendDataByte(bytes)) { 
-                        promise.reject("COMMAND_NOT_SEND", "Failed to print text"); 
-                        return; 
-                    }
-                    if (!sendDataByte(PrinterCommand.POS_S_Align(0))) { 
-                        Log.w(TAG, "Failed to reset alignment");
-                    }
-                    promise.resolve(null);
-                } catch (Exception e) {
-                    Log.e(TAG, "Centered text standard path failed: " + e.getMessage());
-                    promise.reject("PRINT_ERROR", e.getMessage(), e);
+            // ── FALLBACK ─────────────────────────────────────────────────────────────
+            try {
+                if (!sendDataByte(PrinterCommand.POS_S_Align(1))) {
+                    promise.reject("COMMAND_NOT_SEND", "Failed to set alignment"); return;
                 }
-            } else {
-                promise.reject("AR_RENDER_FAILED", "All centered Arabic text rendering methods failed");
+                String toPrint = text;
+                if (containsArabicCharacters(text)) {
+                    try {
+                        if (sendDataByte(PrinterCommand.POS_Print_Text(toPrint, "UTF-8", 0, widthTimes, heigthTimes, fonttype))) {
+                            sendDataByte(PrinterCommand.POS_S_Align(0));
+                            promise.resolve(null); return;
+                        }
+                    } catch (Exception e) { Log.e(TAG, "UTF-8 fallback: " + e.getMessage()); }
+                    toPrint = toPrint.replaceAll("[^\\x00-\\x7F]", "?");
+                }
+                if (fonttype == 0) sendDataByte(Command.ESC_ExclamationMark);
+                byte[] bytes = PrinterCommand.POS_Print_Text(toPrint, encoding, codepage, widthTimes, heigthTimes, fonttype);
+                if (sendDataByte(bytes)) {
+                    sendDataByte(PrinterCommand.POS_S_Align(0)); promise.resolve(null);
+                } else {
+                    promise.reject("COMMAND_NOT_SEND", "Failed to print");
+                }
+            } catch (Exception e) {
+                promise.reject("PRINT_ERROR", e.getMessage(), e);
             }
         } catch (Exception e) {
             Log.e(TAG, "printTextCentered error: " + e.getMessage());
@@ -1025,28 +607,12 @@ public class RNBluetoothEscposPrinterModule extends ReactContextBaseJavaModule
     }
 
     @Override
-    public void onBluetoothServiceStateChanged(int state, Map<String, Object> boundle) {
+    public void onBluetoothServiceStateChanged(int state, Map<String, Object> boundle) {}
 
+    private static class ColumnSplitedString {
+        private final int shorter; private final String str;
+        ColumnSplitedString(int shorter, String str) { this.shorter = shorter; this.str = str; }
+        int getShorter() { return shorter; }
+        String getStr() { return str; }
     }
-
-    /****************************************************************************************************/
-
-    private static class ColumnSplitedString{
-        private int shorter;
-        private String str;
-
-        public ColumnSplitedString(int shorter, String str) {
-            this.shorter = shorter;
-            this.str = str;
-        }
-
-        public int getShorter() {
-            return shorter;
-        }
-
-        public String getStr() {
-            return str;
-        }
-    }
-
 }
